@@ -1,4 +1,6 @@
 (function () {
+  var STORAGE_KEY = "cold_chain_vouchers_v1";
+
   var STEP_DEFS = {
     "箱温偏高": [
       { title: "使用手持温度计复测温度", desc: "请拿手持温度枪，在货厢内前、中、后三个位置各测一次温度，记录最高值。如果没有手持温度计，请立即联系调度。" },
@@ -88,12 +90,63 @@
     formData: {},
     completedSteps: [],
     stepTimes: [],
+    stepEvidence: {},
     startTime: null,
     voucherNo: null,
-    currentStep: 1
+    currentStep: 1,
+    currentMode: "driver",
+    currentViewId: null
   };
 
   function $(id) { return document.getElementById(id); }
+
+  function getAllRecords() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+      var arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveAllRecords(records) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    } catch (e) {
+      showToast("保存失败：" + e.message, "error");
+    }
+  }
+
+  function addRecord(rec) {
+    var all = getAllRecords();
+    all.unshift(rec);
+    saveAllRecords(all);
+    updateBadge();
+  }
+
+  function updateRecord(id, patch) {
+    var all = getAllRecords();
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].id === id) {
+        for (var k in patch) {
+          if (patch.hasOwnProperty(k)) all[i][k] = patch[k];
+        }
+        saveAllRecords(all);
+        return all[i];
+      }
+    }
+    return null;
+  }
+
+  function findRecord(id) {
+    var all = getAllRecords();
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].id === id) return all[i];
+    }
+    return null;
+  }
 
   function initClock() {
     function update() {
@@ -116,6 +169,21 @@
     }, 2200);
   }
 
+  function switchMode(mode) {
+    state.currentMode = mode;
+    var tabs = document.querySelectorAll(".mode-tab");
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].classList.toggle("active", tabs[i].dataset.mode === mode);
+    }
+    var panels = document.querySelectorAll(".mode-panel");
+    for (var j = 0; j < panels.length; j++) {
+      panels[j].classList.toggle("active", panels[j].id === "mode-" + mode);
+    }
+    if (mode === "board") refreshBoard();
+    if (mode === "history") runQuery();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function switchStep(step) {
     state.currentStep = step;
     var windows = document.querySelectorAll(".window");
@@ -123,7 +191,8 @@
     var navBtns = document.querySelectorAll(".nav-btn");
     for (var j = 0; j < navBtns.length; j++) navBtns[j].classList.remove("active");
     $("window" + step).classList.add("active");
-    document.querySelector('.nav-btn[data-step="' + step + '"]').classList.add("active");
+    var sel = document.querySelector('.nav-btn[data-step="' + step + '"]');
+    if (sel) sel.classList.add("active");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -134,11 +203,24 @@
     return h + ":" + m + ":" + s;
   }
 
+  function formatDateTime(date) {
+    var y = date.getFullYear();
+    var mo = String(date.getMonth() + 1).padStart(2, "0");
+    var d = String(date.getDate()).padStart(2, "0");
+    return y + "-" + mo + "-" + d + " " + formatTime(date);
+  }
+
   function formatDate(date) {
     var y = date.getFullYear();
     var mo = String(date.getMonth() + 1).padStart(2, "0");
     var d = String(date.getDate()).padStart(2, "0");
     return y + "-" + mo + "-" + d;
+  }
+
+  function isSameDay(d1, d2) {
+    return d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate();
   }
 
   function initScenarioSelection() {
@@ -160,28 +242,24 @@
     var plate = $("plateNo").value.trim();
     var goods = $("goodsType").value.trim();
     var driver = $("driverName").value.trim();
-    if (!plate) {
-      showToast("请填写车牌号！", "error");
-      $("plateNo").focus();
-      return false;
-    }
-    if (!goods) {
-      showToast("请填写货品种类！", "error");
-      $("goodsType").focus();
-      return false;
-    }
-    if (!driver) {
-      showToast("请填写司机姓名！", "error");
-      $("driverName").focus();
-      return false;
-    }
+    var store = $("storeName").value.trim();
+    var curTemp = $("currentTemp").value.trim();
+    var reqTemp = $("requiredTemp").value.trim();
+
+    if (!plate) { showToast("请填写车牌号！", "error"); $("plateNo").focus(); return false; }
+    if (!goods) { showToast("请填写货品种类！", "error"); $("goodsType").focus(); return false; }
+    if (!driver) { showToast("请填写司机姓名！", "error"); $("driverName").focus(); return false; }
+    if (!store) { showToast("请填写到达门店！", "error"); $("storeName").focus(); return false; }
+    if (curTemp === "") { showToast("请填写当前温度！温度是凭证重要依据，不能留空。", "error"); $("currentTemp").focus(); return false; }
+    if (reqTemp === "") { showToast("请填写要求温度！温度是凭证重要依据，不能留空。", "error"); $("requiredTemp").focus(); return false; }
+
     state.formData = {
       plateNo: plate,
       goodsType: goods,
-      currentTemp: $("currentTemp").value.trim(),
-      requiredTemp: $("requiredTemp").value.trim(),
+      currentTemp: curTemp,
+      requiredTemp: reqTemp,
       driverName: driver,
-      storeName: $("storeName").value.trim(),
+      storeName: store,
       remark: $("remark").value.trim()
     };
     return true;
@@ -192,6 +270,7 @@
     state.startTime = new Date();
     state.completedSteps = [];
     state.stepTimes = [];
+    state.stepEvidence = {};
     $("currentScenario").textContent = state.selectedScenario;
     renderSteps();
     updateStep3Button();
@@ -205,28 +284,60 @@
     container.innerHTML = "";
     for (var i = 0; i < steps.length; i++) {
       var step = steps[i];
+      var evidence = state.stepEvidence[i] || { photo: "", contactTime: "", staff: "" };
       var div = document.createElement("div");
       div.className = "step-item";
       div.dataset.index = i;
       div.innerHTML =
-        '<div class="step-check" data-index="' + i + '">✓</div>' +
-        '<div class="step-content">' +
-        '  <div class="step-title"><span class="step-num">步骤 ' + (i + 1) + '</span>' + step.title + '</div>' +
-        '  <div class="step-desc">' + step.desc + '</div>' +
-        '  <div class="step-time">完成时间：<span class="st-ts"></span></div>' +
+        '<div class="step-main">' +
+        '  <div class="step-check" data-index="' + i + '">&#10003;</div>' +
+        '  <div class="step-content">' +
+        '    <div class="step-title"><span class="step-num">步骤 ' + (i + 1) + '</span>' + step.title + '</div>' +
+        '    <div class="step-desc">' + step.desc + '</div>' +
+        '    <div class="step-time">完成时间：<span class="st-ts"></span></div>' +
+        '  </div>' +
+        '</div>' +
+        '<div class="step-evidence">' +
+        '  <div class="evidence-title">&#128221; 留存本步证据（填一项即可，尽量完整）</div>' +
+        '  <div class="evidence-grid">' +
+        '    <div class="ev-item"><label>照片文件名</label><input type="text" class="ev-photo" data-step="' + i + '" placeholder="如 IMG_20260621_1530.jpg" value="' + (evidence.photo || "") + '"></div>' +
+        '    <div class="ev-item"><label>联系调度时间</label><input type="text" class="ev-contact" data-step="' + i + '" placeholder="如 15:32 接通 张调度" value="' + (evidence.contactTime || "") + '"></div>' +
+        '    <div class="ev-item"><label>门店人员姓名</label><input type="text" class="ev-staff" data-step="' + i + '" placeholder="如 李主管/收货员王师傅" value="' + (evidence.staff || "") + '"></div>' +
+        '  </div>' +
         '</div>';
       container.appendChild(div);
     }
     var activeIdx = findNextActiveIndex();
-    if (activeIdx !== -1) {
+    if (activeIdx !== -1 && container.children[activeIdx]) {
       container.children[activeIdx].classList.add("active");
     }
+    for (var k = 0; k < state.completedSteps.length; k++) {
+      markStepDone(state.completedSteps[k], state.stepTimes[k] ? state.stepTimes[k].time : new Date(), false);
+    }
     var checks = document.querySelectorAll(".step-check");
-    for (var k = 0; k < checks.length; k++) {
-      checks[k].addEventListener("click", function () {
+    for (var m = 0; m < checks.length; m++) {
+      checks[m].addEventListener("click", function () {
         var idx = parseInt(this.dataset.index);
         toggleStep(idx);
       });
+    }
+    bindEvidenceInputs();
+  }
+
+  function bindEvidenceInputs() {
+    var fields = ["photo", "contact", "staff"];
+    var cls = ["ev-photo", "ev-contact", "ev-staff"];
+    for (var c = 0; c < cls.length; c++) {
+      var inputs = document.querySelectorAll("." + cls[c]);
+      for (var i = 0; i < inputs.length; i++) {
+        (function (input, fieldName) {
+          input.addEventListener("input", function () {
+            var idx = parseInt(input.dataset.step);
+            if (!state.stepEvidence[idx]) state.stepEvidence[idx] = {};
+            state.stepEvidence[idx][fieldName] = input.value.trim();
+          });
+        })(inputs[i], fields[c]);
+      }
     }
   }
 
@@ -238,6 +349,17 @@
     return -1;
   }
 
+  function markStepDone(index, time, record) {
+    var items = document.querySelectorAll(".step-item");
+    if (!items[index]) return;
+    items[index].classList.add("done");
+    var ts = items[index].querySelector(".st-ts");
+    if (ts) ts.textContent = formatTime(time);
+    if (record !== false) {
+      // noop - handled by caller
+    }
+  }
+
   function toggleStep(index) {
     var items = document.querySelectorAll(".step-item");
     var pos = state.completedSteps.indexOf(index);
@@ -245,18 +367,18 @@
       state.completedSteps.splice(pos, 1);
       state.stepTimes.splice(pos, 1);
       items[index].classList.remove("done");
-      items[index].querySelector(".st-ts").textContent = "";
+      var ts = items[index].querySelector(".st-ts");
+      if (ts) ts.textContent = "";
     } else {
       var now = new Date();
       state.completedSteps.push(index);
       state.stepTimes.push({ index: index, time: now });
-      items[index].classList.add("done");
-      items[index].querySelector(".st-ts").textContent = formatTime(now);
+      markStepDone(index, now);
     }
     var allItems = document.querySelectorAll(".step-item");
     for (var i = 0; i < allItems.length; i++) allItems[i].classList.remove("active");
     var activeIdx = findNextActiveIndex();
-    if (activeIdx !== -1) {
+    if (activeIdx !== -1 && allItems[activeIdx]) {
       allItems[activeIdx].classList.add("active");
     }
     updateStep3Button();
@@ -274,9 +396,33 @@
       showToast("请完成所有处置步骤！", "error");
       return;
     }
-    generateVoucher();
+    // 收集证据
+    collectEvidenceFromDom();
+    var rec = generateVoucher();
+    persistVoucher(rec);
     switchStep(3);
-    showToast("凭证已生成，请核对后打印", "success");
+    showToast("凭证已生成并自动存入本机记录", "success");
+  }
+
+  function collectEvidenceFromDom() {
+    var photoInputs = document.querySelectorAll(".ev-photo");
+    var contactInputs = document.querySelectorAll(".ev-contact");
+    var staffInputs = document.querySelectorAll(".ev-staff");
+    for (var i = 0; i < photoInputs.length; i++) {
+      var idx = parseInt(photoInputs[i].dataset.step);
+      if (!state.stepEvidence[idx]) state.stepEvidence[idx] = {};
+      state.stepEvidence[idx].photo = photoInputs[i].value.trim();
+    }
+    for (var j = 0; j < contactInputs.length; j++) {
+      var idx2 = parseInt(contactInputs[j].dataset.step);
+      if (!state.stepEvidence[idx2]) state.stepEvidence[idx2] = {};
+      state.stepEvidence[idx2].contactTime = contactInputs[j].value.trim();
+    }
+    for (var k = 0; k < staffInputs.length; k++) {
+      var idx3 = parseInt(staffInputs[k].dataset.step);
+      if (!state.stepEvidence[idx3]) state.stepEvidence[idx3] = {};
+      state.stepEvidence[idx3].staff = staffInputs[k].value.trim();
+    }
   }
 
   function generateVoucherNo() {
@@ -290,113 +436,244 @@
     return "LL" + y + mo + d + h + mi + rand;
   }
 
-  function generateVoucher() {
-    state.voucherNo = generateVoucherNo();
-    $("voucherNo").textContent = state.voucherNo;
-    $("v_plate").textContent = state.formData.plateNo || "—";
-    $("v_driver").textContent = state.formData.driverName || "—";
-    $("v_store").textContent = state.formData.storeName || "—";
-    $("v_goods").textContent = state.formData.goodsType || "—";
-    $("v_temp").textContent = state.formData.currentTemp ? state.formData.currentTemp + "℃" : "—";
-    $("v_reqTemp").textContent = state.formData.requiredTemp ? state.formData.requiredTemp + "℃" : "—";
-    $("v_scenario").textContent = state.selectedScenario || "—";
-
-    var tl = $("timeline");
-    tl.innerHTML = "";
-    var timelineData = buildTimeline();
-    for (var i = 0; i < timelineData.length; i++) {
-      var t = timelineData[i];
-      var row = document.createElement("div");
-      row.className = "timeline-item";
-      row.innerHTML = '<div class="tl-time">' + t.time + '</div><div class="tl-text">' + t.text + '</div>';
-      tl.appendChild(row);
-    }
-    $("v_remark").textContent = state.formData.remark || "司机未填写特别说明。";
-
-    var follow = FOLLOW_ITEMS[state.selectedScenario] || FOLLOW_ITEMS["其他异常"];
-    var fl = $("followList");
-    fl.innerHTML = "";
-    for (var j = 0; j < follow.length; j++) {
-      var li = document.createElement("li");
-      li.textContent = follow[j];
-      fl.appendChild(li);
-    }
-    var nowTime = new Date();
-    $("voucherTime").textContent = formatDate(nowTime) + " " + formatTime(nowTime);
-  }
-
-  function buildTimeline() {
+  function buildTimelineData() {
     var result = [];
     result.push({
       time: formatTime(state.startTime),
-      text: "【到站登记】车牌号" + state.formData.plateNo + "到达" + (state.formData.storeName || "门店") + "，发现异常类型：" + state.selectedScenario
+      text: "【到站登记】车牌号" + state.formData.plateNo + "到达" + (state.formData.storeName || "门店") + "，发现异常类型：" + state.selectedScenario,
+      evidence: null
     });
     var steps = STEP_DEFS[state.selectedScenario] || STEP_DEFS["其他异常"];
     var sortedTimes = state.stepTimes.slice().sort(function (a, b) { return a.time - b.time; });
     for (var i = 0; i < sortedTimes.length; i++) {
       var st = sortedTimes[i];
+      var ev = state.stepEvidence[st.index] || null;
       result.push({
         time: formatTime(st.time),
-        text: "【处置完成】" + steps[st.index].title
+        text: "【处置完成】" + steps[st.index].title,
+        evidence: ev
       });
     }
     result.push({
       time: formatTime(new Date()),
-      text: "【凭证生成】司机完成全部处置步骤，生成异常处置凭证"
+      text: "【凭证生成】司机完成全部处置步骤，生成异常处置凭证",
+      evidence: null
     });
     return result;
+  }
+
+  function buildDriverNoteWithEvidence() {
+    var parts = [];
+    if (state.formData.remark) parts.push("【司机说明】" + state.formData.remark);
+    var steps = STEP_DEFS[state.selectedScenario] || STEP_DEFS["其他异常"];
+    var hasEv = false;
+    var evLines = [];
+    for (var i = 0; i < steps.length; i++) {
+      var ev = state.stepEvidence[i];
+      if (!ev) continue;
+      var items = [];
+      if (ev.photo) items.push("照片：" + ev.photo);
+      if (ev.contactTime) items.push("联系调度：" + ev.contactTime);
+      if (ev.staff) items.push("门店人员：" + ev.staff);
+      if (items.length > 0) {
+        hasEv = true;
+        evLines.push("步骤" + (i + 1) + " " + steps[i].title + " - " + items.join(" / "));
+      }
+    }
+    if (hasEv) {
+      parts.push("【现场证据】" + evLines.join("；"));
+    }
+    return parts.length ? parts.join("\n") : "司机未填写特别说明。";
+  }
+
+  function generateVoucher() {
+    state.voucherNo = generateVoucherNo();
+    $("voucherNo").textContent = state.voucherNo;
+    $("v_plate").textContent = state.formData.plateNo || "-";
+    $("v_driver").textContent = state.formData.driverName || "-";
+    $("v_store").textContent = state.formData.storeName || "-";
+    $("v_goods").textContent = state.formData.goodsType || "-";
+    $("v_temp").textContent = state.formData.currentTemp ? state.formData.currentTemp + "\u2103" : "-";
+    $("v_reqTemp").textContent = state.formData.requiredTemp ? state.formData.requiredTemp + "\u2103" : "-";
+    $("v_scenario").textContent = state.selectedScenario || "-";
+
+    var tl = $("timeline");
+    tl.innerHTML = "";
+    var tlData = buildTimelineData();
+    for (var t = 0; t < tlData.length; t++) {
+      var item = tlData[t];
+      var row = document.createElement("div");
+      row.className = "timeline-item";
+      var html = '<div class="tl-time">' + item.time + '</div><div class="tl-text">' + item.text;
+      if (item.evidence) {
+        var evItems = [];
+        if (item.evidence.photo) evItems.push("照片文件：" + item.evidence.photo);
+        if (item.evidence.contactTime) evItems.push("联系调度：" + item.evidence.contactTime);
+        if (item.evidence.staff) evItems.push("门店人员：" + item.evidence.staff);
+        if (evItems.length) html += '<div class="tl-ev">' + evItems.join("  |  ") + '</div>';
+      }
+      html += '</div>';
+      row.innerHTML = html;
+      tl.appendChild(row);
+    }
+    $("v_remark").textContent = buildDriverNoteWithEvidence();
+
+    var follow = FOLLOW_ITEMS[state.selectedScenario] || FOLLOW_ITEMS["其他异常"];
+    var fl = $("followList");
+    fl.innerHTML = "";
+    for (var f = 0; f < follow.length; f++) {
+      var li = document.createElement("li");
+      li.textContent = follow[f];
+      fl.appendChild(li);
+    }
+
+    var nowTime = new Date();
+    $("voucherTime").textContent = formatDate(nowTime) + " " + formatTime(nowTime);
+
+    var record = {
+      id: state.voucherNo,
+      voucherNo: state.voucherNo,
+      createdAt: nowTime.getTime(),
+      createdAtStr: formatDateTime(nowTime),
+      dateStr: formatDate(nowTime),
+      plateNo: state.formData.plateNo,
+      driverName: state.formData.driverName,
+      storeName: state.formData.storeName,
+      goodsType: state.formData.goodsType,
+      currentTemp: state.formData.currentTemp,
+      requiredTemp: state.formData.requiredTemp,
+      scenario: state.selectedScenario,
+      remark: state.formData.remark,
+      stepEvidence: state.stepEvidence,
+      stepTimes: state.stepTimes.map(function (s) { return { index: s.index, time: s.time.getTime() }; }),
+      startTime: state.startTime.getTime(),
+      followStatus: "pending",
+      followedAt: null,
+      fullNote: buildDriverNoteWithEvidence(),
+      timeline: tlData
+    };
+    return record;
+  }
+
+  function persistVoucher(rec) {
+    var existing = findRecord(rec.id);
+    if (!existing) addRecord(rec);
+    return rec;
+  }
+
+  function buildVoucherHTML(rec) {
+    var steps = STEP_DEFS[rec.scenario] || STEP_DEFS["其他异常"];
+    var follow = FOLLOW_ITEMS[rec.scenario] || FOLLOW_ITEMS["其他异常"];
+    var evSummaryLines = [];
+    for (var i = 0; i < steps.length; i++) {
+      var ev = rec.stepEvidence ? rec.stepEvidence[i] : null;
+      if (!ev) continue;
+      var items = [];
+      if (ev.photo) items.push("照片：" + ev.photo);
+      if (ev.contactTime) items.push("联系调度：" + ev.contactTime);
+      if (ev.staff) items.push("门店人员：" + ev.staff);
+      if (items.length) evSummaryLines.push("步骤" + (i + 1) + " " + steps[i].title + " - " + items.join(" / "));
+    }
+    var driverNote = "";
+    if (rec.remark) driverNote += "【司机说明】" + rec.remark;
+    if (evSummaryLines.length) {
+      if (driverNote) driverNote += "\n";
+      driverNote += "【现场证据】" + evSummaryLines.join("；");
+    }
+    if (!driverNote) driverNote = "司机未填写特别说明。";
+
+    var tlHTML = "";
+    for (var t = 0; t < rec.timeline.length; t++) {
+      var itm = rec.timeline[t];
+      var evHtml = "";
+      if (itm.evidence) {
+        var bits = [];
+        if (itm.evidence.photo) bits.push("照片文件：" + itm.evidence.photo);
+        if (itm.evidence.contactTime) bits.push("联系调度：" + itm.evidence.contactTime);
+        if (itm.evidence.staff) bits.push("门店人员：" + itm.evidence.staff);
+        if (bits.length) evHtml = '<div class="tl-ev">' + bits.join("  |  ") + '</div>';
+      }
+      tlHTML += '<div class="timeline-item"><div class="tl-time">' + itm.time + '</div><div class="tl-text">' + itm.text + evHtml + '</div></div>';
+    }
+
+    var flHTML = "";
+    for (var f = 0; f < follow.length; f++) {
+      flHTML += "<li>" + follow[f] + "</li>";
+    }
+
+    return '<div class="voucher-container"><div class="voucher">' +
+      '<div class="voucher-head"><h3>冷链运输温控异常处置凭证</h3><div class="voucher-no">编号：' + rec.voucherNo + '</div></div>' +
+      '<div class="voucher-section"><h4>基本信息</h4>' +
+      '<div class="info-row"><span>车牌号：</span><b>' + rec.plateNo + '</b></div>' +
+      '<div class="info-row"><span>司机姓名：</span><b>' + rec.driverName + '</b></div>' +
+      '<div class="info-row"><span>到达门店：</span><b>' + rec.storeName + '</b></div>' +
+      '<div class="info-row"><span>货品种类：</span><b>' + rec.goodsType + '</b></div>' +
+      '<div class="info-row"><span>当前温度：</span><b>' + (rec.currentTemp ? rec.currentTemp + "\u2103" : "-") + '</b></div>' +
+      '<div class="info-row"><span>要求温度：</span><b>' + (rec.requiredTemp ? rec.requiredTemp + "\u2103" : "-") + '</b></div>' +
+      '<div class="info-row"><span>异常类型：</span><b>' + rec.scenario + '</b></div>' +
+      '<div class="info-row"><span>跟进状态：</span><b>' + (rec.followStatus === "done" ? "已跟进" : "待跟进") + '</b></div>' +
+      '</div>' +
+      '<div class="voucher-section"><h4>处置时间线（含现场证据）</h4><div class="timeline">' + tlHTML + '</div></div>' +
+      '<div class="voucher-section"><h4>现场证据与备注</h4><div class="driver-note">' + driverNote.replace(/\n/g, "<br>") + '</div></div>' +
+      '<div class="voucher-section"><h4>需调度跟进事项</h4><ul class="follow-list">' + flHTML + '</ul></div>' +
+      '<div class="voucher-sign">' +
+      '<div class="sign-box"><div class="sign-label">司机签字：</div><div class="sign-line"></div></div>' +
+      '<div class="sign-box"><div class="sign-label">门店签字：</div><div class="sign-line"></div></div>' +
+      '<div class="sign-box"><div class="sign-label">调度签字：</div><div class="sign-line"></div></div>' +
+      '</div>' +
+      '<div class="voucher-foot">本凭证由系统生成，一式三份（司机、门店、调度各一份），本机已留存记录<br>生成时间：' + rec.createdAtStr + '</div>' +
+      '</div></div>';
+  }
+
+  function printVoucherHTML(html) {
+    var w = window.open("", "_blank", "width=900,height=700");
+    if (!w) {
+      showToast("浏览器阻止了新窗口，请允许弹出窗口后重试", "error");
+      return;
+    }
+    var styles = [
+      'body { font-family: "Microsoft YaHei", sans-serif; padding: 40px; background: #fff; color: #1e293b; }',
+      '.voucher { max-width: 820px; margin: 0 auto; background: white; border: 2px solid #cbd5e1; border-radius: 12px; padding: 32px 40px; }',
+      '.voucher-head { text-align: center; padding-bottom: 18px; border-bottom: 2px solid #334155; margin-bottom: 22px; }',
+      '.voucher-head h3 { font-size: 28px; color: #0f172a; margin-bottom: 8px; }',
+      '.voucher-no { font-size: 17px; color: #64748b; font-family: Consolas, monospace; }',
+      '.voucher-section { margin-bottom: 22px; }',
+      '.voucher-section h4 { font-size: 19px; color: #0284c7; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid #e2e8f0; }',
+      '.info-row { display: flex; padding: 7px 0; font-size: 18px; border-bottom: 1px dashed #e2e8f0; }',
+      '.info-row:last-child { border-bottom: none; }',
+      '.info-row span { width: 130px; color: #475569; flex-shrink: 0; }',
+      '.info-row b { color: #0f172a; flex: 1; }',
+      '.timeline { padding-left: 6px; }',
+      '.timeline-item { display: flex; gap: 14px; padding: 10px 0; border-bottom: 1px dashed #e2e8f0; align-items: flex-start; }',
+      '.timeline-item:last-child { border-bottom: none; }',
+      '.tl-time { font-family: Consolas, monospace; font-size: 15px; color: #0284c7; background: #e0f2fe; padding: 4px 9px; border-radius: 6px; white-space: nowrap; flex-shrink: 0; font-weight: 600; }',
+      '.tl-text { font-size: 17px; color: #1e293b; line-height: 1.6; }',
+      '.tl-ev { margin-top: 6px; padding: 6px 10px; background: #f8fafc; border-left: 3px solid #94a3b8; border-radius: 4px; font-size: 14px; color: #475569; line-height: 1.6; }',
+      '.driver-note { font-size: 17px; color: #1e293b; background: #fef9c3; padding: 14px 18px; border-radius: 8px; border-left: 4px solid #eab308; line-height: 1.7; min-height: 50px; }',
+      '.follow-list { list-style: none; padding: 0; margin: 0; }',
+      '.follow-list li { font-size: 17px; color: #991b1b; padding: 8px 0 8px 26px; position: relative; border-bottom: 1px dashed #fecaca; line-height: 1.5; }',
+      '.follow-list li:last-child { border-bottom: none; }',
+      '.voucher-sign { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 32px; padding-top: 22px; border-top: 2px solid #e2e8f0; }',
+      '.sign-box { display: flex; flex-direction: column; gap: 8px; }',
+      '.sign-label { font-size: 16px; color: #475569; font-weight: 600; }',
+      '.sign-line { height: 40px; border-bottom: 2px solid #334155; }',
+      '.voucher-foot { text-align: center; margin-top: 24px; padding-top: 16px; border-top: 2px dashed #94a3b8; font-size: 13px; color: #64748b; line-height: 1.8; }'
+    ].join(" ");
+    var pageTitle = "冷链异常凭证打印";
+    w.document.write("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>" + pageTitle + "</title><style>" + styles + "</style></head><body>" + html + "</body></html>");
+    w.document.close();
+    setTimeout(function () {
+      try { w.print(); } catch (e) {}
+    }, 400);
   }
 
   function printVoucher() {
     window.print();
   }
 
-  function saveVoucher() {
-    var voucherEl = $("voucher");
-    var now = new Date();
-    var fileName = "温控异常凭证_" + (state.formData.plateNo || "车牌") + "_" + formatDate(now) + ".html";
-    var styleTag = document.createElement("style");
-    styleTag.textContent = [
-      'body { font-family: "Microsoft YaHei", sans-serif; padding: 40px; background: #f5f5f5; color: #1e293b; }',
-      '.voucher { max-width: 820px; margin: 0 auto; background: white; border: 2px solid #cbd5e1; border-radius: 12px; padding: 36px 44px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); }',
-      '.voucher-head { text-align: center; padding-bottom: 20px; border-bottom: 2px solid #334155; margin-bottom: 24px; }',
-      '.voucher-head h3 { font-size: 30px; color: #0f172a; margin-bottom: 10px; }',
-      '.voucher-no { font-size: 18px; color: #64748b; font-family: Consolas, monospace; }',
-      '.voucher-section { margin-bottom: 24px; }',
-      '.voucher-section h4 { font-size: 20px; color: #0284c7; margin-bottom: 14px; padding-bottom: 6px; border-bottom: 2px solid #e2e8f0; }',
-      '.info-row { display: flex; padding: 8px 0; font-size: 19px; border-bottom: 1px dashed #e2e8f0; }',
-      '.info-row:last-child { border-bottom: none; }',
-      '.info-row span { width: 140px; color: #475569; flex-shrink: 0; }',
-      '.info-row b { color: #0f172a; flex: 1; }',
-      '.timeline { padding-left: 8px; }',
-      '.timeline-item { display: flex; gap: 16px; padding: 12px 0; border-bottom: 1px dashed #e2e8f0; align-items: flex-start; }',
-      '.timeline-item:last-child { border-bottom: none; }',
-      '.tl-time { font-family: Consolas, monospace; font-size: 16px; color: #0284c7; background: #e0f2fe; padding: 4px 10px; border-radius: 6px; white-space: nowrap; flex-shrink: 0; font-weight: 600; }',
-      '.tl-text { font-size: 18px; color: #1e293b; line-height: 1.5; }',
-      '.driver-note { font-size: 18px; color: #1e293b; background: #fef9c3; padding: 14px 18px; border-radius: 8px; border-left: 4px solid #eab308; line-height: 1.6; min-height: 50px; }',
-      '.follow-list { list-style: none; padding: 0; margin: 0; }',
-      '.follow-list li { font-size: 18px; color: #991b1b; padding: 10px 0 10px 28px; position: relative; border-bottom: 1px dashed #fecaca; line-height: 1.5; }',
-      '.follow-list li:last-child { border-bottom: none; }',
-      '.voucher-sign { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 36px; padding-top: 24px; border-top: 2px solid #e2e8f0; }',
-      '.sign-box { display: flex; flex-direction: column; gap: 10px; }',
-      '.sign-label { font-size: 17px; color: #475569; font-weight: 600; }',
-      '.sign-line { height: 44px; border-bottom: 2px solid #334155; }',
-      '.voucher-foot { text-align: center; margin-top: 28px; padding-top: 18px; border-top: 2px dashed #94a3b8; font-size: 14px; color: #64748b; line-height: 1.8; }'
-    ].join(" ");
-
-    var htmlContent = "<!DOCTYPE html>" +
-      '<html lang="zh-CN">' +
-      "<head>" +
-      '<meta charset="UTF-8">' +
-      "<title>温控异常处置凭证 - " + state.voucherNo + "</title>" +
-      styleTag.outerHTML +
-      "</head>" +
-      "<body>" +
-      voucherEl.outerHTML +
-      "</body>" +
-      "</html>";
-
-    var blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
+  function saveVoucherHTML(html, fileName) {
+    var fullHTML = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>" + fileName + "</title></head><body>" + html + "</body></html>";
+    var blob = new Blob([fullHTML], { type: "text/html;charset=utf-8" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url;
@@ -405,33 +682,268 @@
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  function saveVoucher() {
+    var html = $("voucher").outerHTML;
+    var fileName = "温控异常凭证_" + state.formData.plateNo + "_" + formatDate(new Date()) + ".html";
+    saveVoucherHTML(html, fileName);
     showToast("凭证已保存到本地", "success");
+  }
+
+  function resetDriverForm() {
+    state.selectedScenario = null;
+    state.formData = {};
+    state.completedSteps = [];
+    state.stepTimes = [];
+    state.stepEvidence = {};
+    state.startTime = null;
+    state.voucherNo = null;
+    state.currentStep = 1;
+
+    var cards = document.querySelectorAll(".scenario-card");
+    for (var i = 0; i < cards.length; i++) cards[i].classList.remove("selected");
+    var ids = ["plateNo", "goodsType", "currentTemp", "requiredTemp", "driverName", "storeName", "remark"];
+    for (var j = 0; j < ids.length; j++) {
+      var el = $(ids[j]);
+      if (el) el.value = "";
+    }
+    switchStep(1);
+    switchMode("driver");
+    showToast("已清空，可开始新的登记", "success");
+  }
+
+  function updateBadge() {
+    var all = getAllRecords();
+    var today = new Date();
+    var cnt = 0;
+    for (var i = 0; i < all.length; i++) {
+      if (isSameDay(new Date(all[i].createdAt), today)) cnt++;
+    }
+    $("todayBadge").textContent = cnt;
+  }
+
+  function refreshBoard() {
+    var all = getAllRecords();
+    var today = new Date();
+    var todays = [];
+    for (var i = 0; i < all.length; i++) {
+      if (isSameDay(new Date(all[i].createdAt), today)) todays.push(all[i]);
+    }
+    $("boardDateTip").textContent = formatDate(today) + " 统计概览";
+    $("statTotal").textContent = todays.length;
+
+    var counts = { "箱温偏高": 0, "开门时间过长": 0, "温度计损坏": 0, "门店等待卸货": 0, "货品解冻": 0, "其他异常": 0 };
+    var pending = [];
+    for (var j = 0; j < todays.length; j++) {
+      var r = todays[j];
+      if (counts.hasOwnProperty(r.scenario)) counts[r.scenario]++;
+      else counts["其他异常"]++;
+      if (r.followStatus !== "done") pending.push(r);
+    }
+    $("statHot").textContent = counts["箱温偏高"];
+    $("statDoor").textContent = counts["开门时间过长"];
+    $("statWait").textContent = counts["门店等待卸货"];
+    $("statThaw").textContent = counts["货品解冻"];
+    $("statOther").textContent = counts["温度计损坏"] + counts["其他异常"];
+
+    var pendingList = $("pendingList");
+    pendingList.innerHTML = "";
+    if (pending.length === 0) {
+      pendingList.innerHTML = '<div class="empty-state">暂无未跟进事项，做得不错！</div>';
+    } else {
+      for (var p = 0; p < pending.length; p++) {
+        pendingList.appendChild(buildRecordRow(pending[p], true));
+      }
+    }
+
+    var recentList = $("recentList");
+    recentList.innerHTML = "";
+    var recent = todays.slice(0, 8);
+    if (recent.length === 0) {
+      recentList.innerHTML = '<div class="empty-state">今日还没有异常登记</div>';
+    } else {
+      for (var k = 0; k < recent.length; k++) {
+        recentList.appendChild(buildRecordRow(recent[k], false));
+      }
+    }
+    updateBadge();
+  }
+
+  function buildRecordRow(rec, isPending) {
+    var div = document.createElement("div");
+    div.className = "record-item " + (rec.followStatus === "done" ? "done" : "pending");
+    div.innerHTML =
+      '<div class="record-time">' + rec.createdAtStr.substring(5) + '</div>' +
+      '<div class="record-plate">' + rec.plateNo + '</div>' +
+      '<span class="record-scenario">' + rec.scenario + '</span>' +
+      '<div class="record-store">' + rec.storeName + '</div>' +
+      '<div class="record-driver">' + rec.driverName + '</div>' +
+      '<div class="record-status ' + (rec.followStatus === "done" ? "done" : "pending") + '">' + (rec.followStatus === "done" ? "已跟进" : "待跟进") + '</div>' +
+      '<div style="margin-left:auto;"><button class="small-btn primary" data-id="' + rec.id + '">查看</button></div>';
+    var btn = div.querySelector("button");
+    btn.addEventListener("click", function () {
+      openViewModal(rec.id);
+    });
+    return div;
+  }
+
+  function runQuery() {
+    var qPlate = $("q_plate").value.trim();
+    var qStore = $("q_store").value.trim();
+    var qScenario = $("q_scenario").value;
+    var qFrom = $("q_dateFrom").value;
+    var qTo = $("q_dateTo").value;
+
+    var all = getAllRecords();
+    var list = [];
+    for (var i = 0; i < all.length; i++) {
+      var r = all[i];
+      if (qPlate && r.plateNo && r.plateNo.indexOf(qPlate) < 0) continue;
+      if (qStore && r.storeName && r.storeName.indexOf(qStore) < 0) continue;
+      if (qScenario && r.scenario !== qScenario) continue;
+      if (qFrom) {
+        var fromTs = new Date(qFrom + "T00:00:00").getTime();
+        if (r.createdAt < fromTs) continue;
+      }
+      if (qTo) {
+        var toTs = new Date(qTo + "T23:59:59").getTime();
+        if (r.createdAt > toTs) continue;
+      }
+      list.push(r);
+    }
+    $("resultCount").textContent = "共 " + list.length + " 条";
+    var tbody = $("historyBody");
+    tbody.innerHTML = "";
+    $("emptyHistory").style.display = list.length === 0 ? "block" : "none";
+    $("historyTable").style.display = list.length === 0 ? "none" : "";
+    for (var j = 0; j < list.length; j++) {
+      tbody.appendChild(buildHistoryRow(list[j]));
+    }
+  }
+
+  function buildHistoryRow(rec) {
+    var tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td>' + rec.createdAtStr.substring(0, 16) + '</td>' +
+      '<td><b>' + rec.plateNo + '</b></td>' +
+      '<td>' + rec.driverName + '</td>' +
+      '<td>' + rec.storeName + '</td>' +
+      '<td><span class="scenario-tag ' + rec.scenario + '">' + rec.scenario + '</span></td>' +
+      '<td>' + (rec.currentTemp ? rec.currentTemp + "\u2103" : "-") + '</td>' +
+      '<td><span class="status-tag ' + (rec.followStatus === "done" ? "done" : "pending") + '">' + (rec.followStatus === "done" ? "已跟进" : "待跟进") + '</span></td>' +
+      '<td><div class="table-ops"><button class="small-btn primary" data-act="view" data-id="' + rec.id + '">查看</button><button class="small-btn danger" data-act="del" data-id="' + rec.id + '">删除</button></div></td>';
+    var btns = tr.querySelectorAll("button");
+    for (var i = 0; i < btns.length; i++) {
+      (function (b) {
+        b.addEventListener("click", function () {
+          var id = b.dataset.id;
+          var act = b.dataset.act;
+          if (act === "view") openViewModal(id);
+          else if (act === "del") deleteRecord(id);
+        });
+      })(btns[i]);
+    }
+    return tr;
+  }
+
+  function deleteRecord(id) {
+    if (!confirm("确定删除这条凭证记录吗？此操作不可恢复。")) return;
+    var all = getAllRecords();
+    var left = [];
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].id !== id) left.push(all[i]);
+    }
+    saveAllRecords(left);
+    showToast("已删除", "success");
+    runQuery();
+    updateBadge();
+  }
+
+  function openViewModal(id) {
+    var rec = findRecord(id);
+    if (!rec) { showToast("记录不存在", "error"); return; }
+    state.currentViewId = id;
+    $("modalTitle").textContent = "凭证详情 - " + rec.voucherNo;
+    $("modalBody").innerHTML = buildVoucherHTML(rec);
+    $("viewModal").classList.add("show");
+    var doneBtn = $("modalDone");
+    if (rec.followStatus === "done") {
+      doneBtn.textContent = "\u2713 已跟进（取消）";
+    } else {
+      doneBtn.textContent = "\u2713 标记已跟进";
+    }
+  }
+
+  function closeModal() {
+    $("viewModal").classList.remove("show");
+    state.currentViewId = null;
+  }
+
+  function markCurrentViewDone() {
+    if (!state.currentViewId) return;
+    var rec = findRecord(state.currentViewId);
+    if (!rec) return;
+    var newStatus = rec.followStatus === "done" ? "pending" : "done";
+    updateRecord(state.currentViewId, { followStatus: newStatus, followedAt: newStatus === "done" ? Date.now() : null });
+    showToast(newStatus === "done" ? "已标记为已跟进" : "已取消跟进标记", "success");
+    openViewModal(state.currentViewId);
+    if (state.currentMode === "board") refreshBoard();
+    if (state.currentMode === "history") runQuery();
+  }
+
+  function modalPrint() {
+    if (!state.currentViewId) return;
+    var rec = findRecord(state.currentViewId);
+    if (!rec) return;
+    var html = buildVoucherHTML(rec);
+    printVoucherHTML(html);
+  }
+
+  function modalSave() {
+    if (!state.currentViewId) return;
+    var rec = findRecord(state.currentViewId);
+    if (!rec) return;
+    var html = buildVoucherHTML(rec);
+    var fileName = "温控异常凭证_" + rec.plateNo + "_" + rec.dateStr + ".html";
+    saveVoucherHTML(html, fileName);
+    showToast("凭证已保存到本地", "success");
+  }
+
+  function resetQuery() {
+    $("q_plate").value = "";
+    $("q_store").value = "";
+    $("q_scenario").value = "";
+    $("q_dateFrom").value = "";
+    $("q_dateTo").value = "";
+    runQuery();
   }
 
   function bindEvents() {
     $("toStep2").addEventListener("click", goToStep2);
     $("toStep3").addEventListener("click", goToStep3);
     $("backToStep1").addEventListener("click", function () { switchStep(1); });
-    $("backToStep2").addEventListener("click", function () { switchStep(2); });
+    $("backToStep2").addEventListener("click", function () { collectEvidenceFromDom(); switchStep(2); });
     $("printBtn").addEventListener("click", printVoucher);
     $("saveBtn").addEventListener("click", saveVoucher);
+    $("newRecordBtn").addEventListener("click", function () {
+      if (confirm("开始新的登记将清空当前填写内容，确定吗？")) resetDriverForm();
+    });
 
     var navBtns = document.querySelectorAll(".nav-btn");
-    for (var i = 0; i < navBtns.length; i++) {
-      navBtns[i].addEventListener("click", function () {
+    for (var n = 0; n < navBtns.length; n++) {
+      navBtns[n].addEventListener("click", function () {
         var target = parseInt(this.dataset.step);
-        if (target === 1) {
-          switchStep(1);
-        } else if (target === 2) {
-          if (state.selectedScenario && state.formData.plateNo) {
-            switchStep(2);
-          } else {
-            showToast("请先完成异常选择！", "error");
-          }
+        if (target === 1) switchStep(1);
+        else if (target === 2) {
+          if (state.selectedScenario && state.formData.plateNo) switchStep(2);
+          else showToast("请先完成异常选择！", "error");
         } else if (target === 3) {
           var steps = STEP_DEFS[state.selectedScenario] || STEP_DEFS["其他异常"];
           if (state.completedSteps.length >= steps.length) {
-            generateVoucher();
+            collectEvidenceFromDom();
+            var rec = generateVoucher();
+            persistVoucher(rec);
             switchStep(3);
           } else {
             showToast("请先完成处置步骤！", "error");
@@ -439,12 +951,32 @@
         }
       });
     }
+
+    var modeTabs = document.querySelectorAll(".mode-tab");
+    for (var m = 0; m < modeTabs.length; m++) {
+      modeTabs[m].addEventListener("click", function () {
+        switchMode(this.dataset.mode);
+      });
+    }
+
+    $("boardRefresh").addEventListener("click", refreshBoard);
+
+    $("queryBtn").addEventListener("click", runQuery);
+    $("resetBtn").addEventListener("click", resetQuery);
+
+    $("modalClose").addEventListener("click", closeModal);
+    $("modalCloseBtn").addEventListener("click", closeModal);
+    document.querySelector("#viewModal .modal-mask").addEventListener("click", closeModal);
+    $("modalPrint").addEventListener("click", modalPrint);
+    $("modalSave").addEventListener("click", modalSave);
+    $("modalDone").addEventListener("click", markCurrentViewDone);
   }
 
   function init() {
     initClock();
     initScenarioSelection();
     bindEvents();
+    updateBadge();
   }
 
   document.addEventListener("DOMContentLoaded", init);

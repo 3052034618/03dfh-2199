@@ -11,227 +11,410 @@
 <div class="app">
   <header class="top-bar">
     <div class="logo-area">
-      <span class="logo-icon">❄</span>
+      <span class="logo-icon">&#10052;</span>
       <h1 class="app-title">冷链温控异常处置</h1>
     </div>
-    <div class="clock" id="currentTime">--:--:--</div>
+    <div class="top-right">
+      <div class="clock" id="currentTime">--:--:--</div>
+    </div>
   </header>
 
-  <nav class="step-nav">
-    <button class="nav-btn active" data-step="1">
-      <span class="nav-num">1</span>
-      <span class="nav-text">异常选择</span>
+  <div class="mode-tabs">
+    <button class="mode-tab active" data-mode="driver">
+      <span class="mode-icon">&#128666;</span>
+      <span class="mode-name">司机登记</span>
     </button>
-    <div class="nav-arrow">→</div>
-    <button class="nav-btn" data-step="2">
-      <span class="nav-num">2</span>
-      <span class="nav-text">处置步骤</span>
+    <button class="mode-tab" data-mode="board">
+      <span class="mode-icon">&#128202;</span>
+      <span class="mode-name">今日看板</span>
+      <span class="mode-badge" id="todayBadge">0</span>
     </button>
-    <div class="nav-arrow">→</div>
-    <button class="nav-btn" data-step="3">
-      <span class="nav-num">3</span>
-      <span class="nav-text">打印凭证</span>
+    <button class="mode-tab" data-mode="history">
+      <span class="mode-icon">&#128196;</span>
+      <span class="mode-name">历史查询</span>
     </button>
-  </nav>
+  </div>
 
   <main class="content-area">
 
-    <!-- 窗口1：异常选择 -->
-    <section class="window active" id="window1">
+    <!-- 司机登记模式 -->
+    <div class="mode-panel active" id="mode-driver">
+
+      <nav class="step-nav">
+        <button class="nav-btn active" data-step="1">
+          <span class="nav-num">1</span>
+          <span class="nav-text">异常选择</span>
+        </button>
+        <div class="nav-arrow">&#8594;</div>
+        <button class="nav-btn" data-step="2">
+          <span class="nav-num">2</span>
+          <span class="nav-text">处置步骤</span>
+        </button>
+        <div class="nav-arrow">&#8594;</div>
+        <button class="nav-btn" data-step="3">
+          <span class="nav-num">3</span>
+          <span class="nav-text">打印凭证</span>
+        </button>
+      </nav>
+
+      <!-- 窗口1：异常选择 -->
+      <section class="window active" id="window1">
+        <div class="window-header">
+          <h2>第一步：选择异常情况</h2>
+          <p class="window-tip">请在下方找到与您情况最相符的一项，点击选中</p>
+        </div>
+
+        <div class="form-section">
+          <h3 class="section-title">常见异常场景</h3>
+          <div class="scenario-grid" id="scenarioGrid">
+            <div class="scenario-card" data-scenario="箱温偏高">
+              <div class="scenario-icon">&#127777;</div>
+              <div class="scenario-title">箱温偏高</div>
+              <div class="scenario-desc">客户说货厢温度超标</div>
+            </div>
+            <div class="scenario-card" data-scenario="开门时间过长">
+              <div class="scenario-icon">&#128682;</div>
+              <div class="scenario-title">开门时间过长</div>
+              <div class="scenario-desc">卸货时车门开太久</div>
+            </div>
+            <div class="scenario-card" data-scenario="温度计损坏">
+              <div class="scenario-icon">&#128223;</div>
+              <div class="scenario-title">温度计损坏</div>
+              <div class="scenario-desc">温度表显示异常或坏了</div>
+            </div>
+            <div class="scenario-card" data-scenario="门店等待卸货">
+              <div class="scenario-icon">&#8987;</div>
+              <div class="scenario-title">门店等待卸货</div>
+              <div class="scenario-desc">到店后迟迟没人卸货</div>
+            </div>
+            <div class="scenario-card" data-scenario="货品解冻">
+              <div class="scenario-icon">&#129482;</div>
+              <div class="scenario-title">货品解冻</div>
+              <div class="scenario-desc">客户发现货品变软化冻</div>
+            </div>
+            <div class="scenario-card" data-scenario="其他异常">
+              <div class="scenario-icon">&#10067;</div>
+              <div class="scenario-title">其他异常</div>
+              <div class="scenario-desc">以上情况都不符合</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3 class="section-title">填写车辆和货品信息 <span class="req-mark">带*必须填写</span></h3>
+          <div class="info-grid">
+            <div class="info-item">
+              <label>车牌号 <span class="req">*</span></label>
+              <input type="text" id="plateNo" placeholder="如：京A&#183;12345" class="big-input">
+            </div>
+            <div class="info-item">
+              <label>货品种类 <span class="req">*</span></label>
+              <input type="text" id="goodsType" placeholder="如：冷冻肉类、冰淇淋" class="big-input">
+            </div>
+            <div class="info-item">
+              <label>当前温度（℃） <span class="req">*</span></label>
+              <input type="number" id="currentTemp" placeholder="如：-18" class="big-input" step="0.1">
+            </div>
+            <div class="info-item">
+              <label>要求温度（℃） <span class="req">*</span></label>
+              <input type="number" id="requiredTemp" placeholder="如：-18" class="big-input" step="0.1">
+            </div>
+            <div class="info-item">
+              <label>司机姓名 <span class="req">*</span></label>
+              <input type="text" id="driverName" placeholder="请输入您的姓名" class="big-input">
+            </div>
+            <div class="info-item">
+              <label>到达门店 <span class="req">*</span></label>
+              <input type="text" id="storeName" placeholder="如：XX超市朝阳店" class="big-input">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3 class="section-title">情况说明（选填）</h3>
+          <textarea id="remark" class="big-textarea" placeholder="如有特殊情况，可在这里写清楚..."></textarea>
+        </div>
+
+        <div class="action-bar">
+          <button class="big-btn primary" id="toStep2">
+            确认信息，去处置 &#8594;
+          </button>
+        </div>
+      </section>
+
+      <!-- 窗口2：处置步骤 -->
+      <section class="window" id="window2">
+        <div class="window-header">
+          <h2>第二步：按步骤处置并留存证据</h2>
+          <p class="window-tip">做完一项点一项打勾，有证据请在下方填写照片、联系人和时间</p>
+        </div>
+
+        <div class="current-status">
+          <span class="status-label">当前异常：</span>
+          <span class="status-value" id="currentScenario">&#8212;</span>
+        </div>
+
+        <div class="steps-container" id="stepsContainer">
+        </div>
+
+        <div class="action-bar two-btn">
+          <button class="big-btn secondary" id="backToStep1">
+            &#8592; 返回修改
+          </button>
+          <button class="big-btn primary" id="toStep3" disabled>
+            全部完成，生成凭证 &#8594;
+          </button>
+        </div>
+      </section>
+
+      <!-- 窗口3：打印凭证 -->
+      <section class="window" id="window3">
+        <div class="window-header">
+          <h2>第三步：确认并打印凭证</h2>
+          <p class="window-tip">请核对以下信息，确认无误后打印或保存，记录会自动存入本机</p>
+        </div>
+
+        <div class="voucher-container">
+          <div class="voucher" id="voucher">
+            <div class="voucher-head">
+              <h3>冷链运输温控异常处置凭证</h3>
+              <div class="voucher-no">编号：<span id="voucherNo">&#8212;</span></div>
+            </div>
+
+            <div class="voucher-section">
+              <h4>基本信息</h4>
+              <div class="info-row"><span>车牌号：</span><b id="v_plate">&#8212;</b></div>
+              <div class="info-row"><span>司机姓名：</span><b id="v_driver">&#8212;</b></div>
+              <div class="info-row"><span>到达门店：</span><b id="v_store">&#8212;</b></div>
+              <div class="info-row"><span>货品种类：</span><b id="v_goods">&#8212;</b></div>
+              <div class="info-row"><span>当前温度：</span><b id="v_temp">&#8212;</b></div>
+              <div class="info-row"><span>要求温度：</span><b id="v_reqTemp">&#8212;</b></div>
+              <div class="info-row"><span>异常类型：</span><b id="v_scenario">&#8212;</b></div>
+            </div>
+
+            <div class="voucher-section">
+              <h4>处置时间线（含现场证据）</h4>
+              <div class="timeline" id="timeline">
+              </div>
+            </div>
+
+            <div class="voucher-section">
+              <h4>现场证据与备注</h4>
+              <div class="driver-note" id="v_remark">&#8212;</div>
+            </div>
+
+            <div class="voucher-section">
+              <h4>需调度跟进事项</h4>
+              <ul class="follow-list" id="followList">
+              </ul>
+            </div>
+
+            <div class="voucher-sign">
+              <div class="sign-box">
+                <div class="sign-label">司机签字：</div>
+                <div class="sign-line"></div>
+              </div>
+              <div class="sign-box">
+                <div class="sign-label">门店签字：</div>
+                <div class="sign-line"></div>
+              </div>
+              <div class="sign-box">
+                <div class="sign-label">调度签字：</div>
+                <div class="sign-line"></div>
+              </div>
+            </div>
+
+            <div class="voucher-foot">
+              本凭证由系统生成，一式三份（司机、门店、调度各一份），本机已留存记录<br>
+              生成时间：<span id="voucherTime">&#8212;</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="action-bar two-btn">
+          <button class="big-btn secondary" id="backToStep2">
+            &#8592; 返回修改
+          </button>
+          <div class="btn-group">
+            <button class="big-btn success" id="saveBtn">
+              &#128190; 保存凭证
+            </button>
+            <button class="big-btn primary" id="printBtn">
+              &#128424; 打印凭证
+            </button>
+            <button class="big-btn warn" id="newRecordBtn">
+              &#10133; 新登记
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- 今日看板模式 -->
+    <div class="mode-panel" id="mode-board">
       <div class="window-header">
-        <h2>第一步：选择异常情况</h2>
-        <p class="window-tip">请在下方找到与您情况最相符的一项，点击选中</p>
+        <h2>今日异常看板</h2>
+        <p class="window-tip" id="boardDateTip">今日统计概览</p>
       </div>
 
-      <div class="form-section">
-        <h3 class="section-title">常见异常场景</h3>
-        <div class="scenario-grid" id="scenarioGrid">
-          <div class="scenario-card" data-scenario="箱温偏高">
-            <div class="scenario-icon">🌡️</div>
-            <div class="scenario-title">箱温偏高</div>
-            <div class="scenario-desc">客户说货厢温度超标</div>
-          </div>
-          <div class="scenario-card" data-scenario="开门时间过长">
-            <div class="scenario-icon">🚪</div>
-            <div class="scenario-title">开门时间过长</div>
-            <div class="scenario-desc">卸货时车门开太久</div>
-          </div>
-          <div class="scenario-card" data-scenario="温度计损坏">
-            <div class="scenario-icon">📟</div>
-            <div class="scenario-title">温度计损坏</div>
-            <div class="scenario-desc">温度表显示异常或坏了</div>
-          </div>
-          <div class="scenario-card" data-scenario="门店等待卸货">
-            <div class="scenario-icon">⏳</div>
-            <div class="scenario-title">门店等待卸货</div>
-            <div class="scenario-desc">到店后迟迟没人卸货</div>
-          </div>
-          <div class="scenario-card" data-scenario="货品解冻">
-            <div class="scenario-icon">🧊</div>
-            <div class="scenario-title">货品解冻</div>
-            <div class="scenario-desc">客户发现货品变软化冻</div>
-          </div>
-          <div class="scenario-card" data-scenario="其他异常">
-            <div class="scenario-icon">❓</div>
-            <div class="scenario-title">其他异常</div>
-            <div class="scenario-desc">以上情况都不符合</div>
-          </div>
+      <div class="dashboard-grid">
+        <div class="stat-card total">
+          <div class="stat-icon">&#128221;</div>
+          <div class="stat-num" id="statTotal">0</div>
+          <div class="stat-label">今日总异常</div>
+        </div>
+        <div class="stat-card hot">
+          <div class="stat-icon">&#127777;</div>
+          <div class="stat-num" id="statHot">0</div>
+          <div class="stat-label">箱温偏高</div>
+        </div>
+        <div class="stat-card door">
+          <div class="stat-icon">&#128682;</div>
+          <div class="stat-num" id="statDoor">0</div>
+          <div class="stat-label">开门过长</div>
+        </div>
+        <div class="stat-card wait">
+          <div class="stat-icon">&#8987;</div>
+          <div class="stat-num" id="statWait">0</div>
+          <div class="stat-label">等待卸货</div>
+        </div>
+        <div class="stat-card thaw">
+          <div class="stat-icon">&#129482;</div>
+          <div class="stat-num" id="statThaw">0</div>
+          <div class="stat-label">货品解冻</div>
+        </div>
+        <div class="stat-card other">
+          <div class="stat-icon">&#10067;</div>
+          <div class="stat-num" id="statOther">0</div>
+          <div class="stat-label">其他异常</div>
         </div>
       </div>
 
       <div class="form-section">
-        <h3 class="section-title">填写车辆和货品信息</h3>
-        <div class="info-grid">
-          <div class="info-item">
-            <label>车牌号</label>
-            <input type="text" id="plateNo" placeholder="如：京A·12345" class="big-input">
-          </div>
-          <div class="info-item">
-            <label>货品种类</label>
-            <input type="text" id="goodsType" placeholder="如：冷冻肉类、冰淇淋" class="big-input">
-          </div>
-          <div class="info-item">
-            <label>当前温度（℃）</label>
-            <input type="number" id="currentTemp" placeholder="如：-18" class="big-input">
-          </div>
-          <div class="info-item">
-            <label>要求温度（℃）</label>
-            <input type="number" id="requiredTemp" placeholder="如：-18" class="big-input">
-          </div>
-          <div class="info-item">
-            <label>司机姓名</label>
-            <input type="text" id="driverName" placeholder="请输入您的姓名" class="big-input">
-          </div>
-          <div class="info-item">
-            <label>到达门店</label>
-            <input type="text" id="storeName" placeholder="如：XX超市朝阳店" class="big-input">
-          </div>
+        <h3 class="section-title">未跟进事项（需要调度尽快处理）</h3>
+        <div class="pending-list" id="pendingList">
+          <div class="empty-state">暂无未跟进事项</div>
         </div>
       </div>
 
       <div class="form-section">
-        <h3 class="section-title">情况说明（选填）</h3>
-        <textarea id="remark" class="big-textarea" placeholder="如有特殊情况，可在这里写清楚..."></textarea>
+        <h3 class="section-title">最近凭证（按时间倒序）</h3>
+        <div class="recent-list" id="recentList">
+          <div class="empty-state">暂无登记记录</div>
+        </div>
       </div>
 
       <div class="action-bar">
-        <button class="big-btn primary" id="toStep2">
-          确认信息，去处置 →
+        <button class="big-btn primary" id="boardRefresh">
+          &#128260; 刷新数据
         </button>
       </div>
-    </section>
+    </div>
 
-    <!-- 窗口2：处置步骤 -->
-    <section class="window" id="window2">
+    <!-- 历史查询模式 -->
+    <div class="mode-panel" id="mode-history">
       <div class="window-header">
-        <h2>第二步：按步骤处置</h2>
-        <p class="window-tip">请按下方顺序操作，做完一项点一项打勾</p>
+        <h2>历史凭证查询</h2>
+        <p class="window-tip">可按车牌、门店、异常类型和日期筛选本机留存的凭证</p>
       </div>
 
-      <div class="current-status">
-        <span class="status-label">当前异常：</span>
-        <span class="status-value" id="currentScenario">—</span>
-      </div>
-
-      <div class="steps-container" id="stepsContainer">
-        <!-- 步骤将由JS动态生成 -->
-      </div>
-
-      <div class="action-bar two-btn">
-        <button class="big-btn secondary" id="backToStep1">
-          ← 返回修改
-        </button>
-        <button class="big-btn primary" id="toStep3" disabled>
-          全部完成，生成凭证 →
-        </button>
-      </div>
-    </section>
-
-    <!-- 窗口3：打印凭证 -->
-    <section class="window" id="window3">
-      <div class="window-header">
-        <h2>第三步：确认并打印凭证</h2>
-        <p class="window-tip">请核对以下信息，确认无误后打印或保存</p>
-      </div>
-
-      <div class="voucher-container">
-        <div class="voucher" id="voucher">
-          <div class="voucher-head">
-            <h3>冷链运输温控异常处置凭证</h3>
-            <div class="voucher-no">编号：<span id="voucherNo">—</span></div>
+      <div class="form-section">
+        <h3 class="section-title">查询条件</h3>
+        <div class="info-grid">
+          <div class="info-item">
+            <label>车牌号</label>
+            <input type="text" id="q_plate" placeholder="模糊匹配" class="big-input">
           </div>
-
-          <div class="voucher-section">
-            <h4>基本信息</h4>
-            <div class="info-row"><span>车牌号：</span><b id="v_plate">—</b></div>
-            <div class="info-row"><span>司机姓名：</span><b id="v_driver">—</b></div>
-            <div class="info-row"><span>到达门店：</span><b id="v_store">—</b></div>
-            <div class="info-row"><span>货品种类：</span><b id="v_goods">—</b></div>
-            <div class="info-row"><span>当前温度：</span><b id="v_temp">—</b></div>
-            <div class="info-row"><span>要求温度：</span><b id="v_reqTemp">—</b></div>
-            <div class="info-row"><span>异常类型：</span><b id="v_scenario">—</b></div>
+          <div class="info-item">
+            <label>门店名称</label>
+            <input type="text" id="q_store" placeholder="模糊匹配" class="big-input">
           </div>
-
-          <div class="voucher-section">
-            <h4>处置时间线</h4>
-            <div class="timeline" id="timeline">
-              <!-- 时间线由JS动态生成 -->
+          <div class="info-item">
+            <label>异常类型</label>
+            <select id="q_scenario" class="big-input">
+              <option value="">全部</option>
+              <option value="箱温偏高">箱温偏高</option>
+              <option value="开门时间过长">开门时间过长</option>
+              <option value="温度计损坏">温度计损坏</option>
+              <option value="门店等待卸货">门店等待卸货</option>
+              <option value="货品解冻">货品解冻</option>
+              <option value="其他异常">其他异常</option>
+            </select>
+          </div>
+          <div class="info-item">
+            <label>日期范围</label>
+            <div class="date-range">
+              <input type="date" id="q_dateFrom" class="big-input small">
+              <span class="date-sep">至</span>
+              <input type="date" id="q_dateTo" class="big-input small">
             </div>
-          </div>
-
-          <div class="voucher-section">
-            <h4>司机说明</h4>
-            <div class="driver-note" id="v_remark">—</div>
-          </div>
-
-          <div class="voucher-section">
-            <h4>需调度跟进事项</h4>
-            <ul class="follow-list" id="followList">
-              <!-- 跟进事项由JS动态生成 -->
-            </ul>
-          </div>
-
-          <div class="voucher-sign">
-            <div class="sign-box">
-              <div class="sign-label">司机签字：</div>
-              <div class="sign-line"></div>
-            </div>
-            <div class="sign-box">
-              <div class="sign-label">门店签字：</div>
-              <div class="sign-line"></div>
-            </div>
-            <div class="sign-box">
-              <div class="sign-label">调度签字：</div>
-              <div class="sign-line"></div>
-            </div>
-          </div>
-
-          <div class="voucher-foot">
-            本凭证由系统生成，一式三份（司机、门店、调度各一份）<br>
-            生成时间：<span id="voucherTime">—</span>
           </div>
         </div>
-      </div>
-
-      <div class="action-bar two-btn">
-        <button class="big-btn secondary" id="backToStep2">
-          ← 返回修改
-        </button>
-        <div class="btn-group">
-          <button class="big-btn success" id="saveBtn">
-            💾 保存凭证
+        <div class="action-bar" style="margin-top: 24px;">
+          <button class="big-btn primary" id="queryBtn">
+            &#128269; 查询
           </button>
-          <button class="big-btn primary" id="printBtn">
-            🖨️ 打印凭证
+          <button class="big-btn secondary" id="resetBtn" style="margin-left: 16px;">
+            &#128472; 重置
           </button>
         </div>
       </div>
-    </section>
+
+      <div class="form-section">
+        <h3 class="section-title">查询结果 <span class="req-mark" id="resultCount">共 0 条</span></h3>
+        <div class="history-table-wrap">
+          <table class="history-table" id="historyTable">
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>车牌号</th>
+                <th>司机</th>
+                <th>门店</th>
+                <th>异常类型</th>
+                <th>温度</th>
+                <th>跟进状态</th>
+                <th style="width:200px;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody">
+            </tbody>
+          </table>
+          <div class="empty-state" id="emptyHistory">暂无记录</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 凭证查看弹窗 -->
+    <div class="modal" id="viewModal">
+      <div class="modal-mask"></div>
+      <div class="modal-box modal-large">
+        <div class="modal-head">
+          <h3 id="modalTitle">凭证详情</h3>
+          <button class="modal-close" id="modalClose">&#10005;</button>
+        </div>
+        <div class="modal-body" id="modalBody">
+        </div>
+        <div class="modal-foot">
+          <button class="big-btn secondary" id="modalCloseBtn">关闭</button>
+          <div class="btn-group">
+            <button class="big-btn success" id="modalSave">
+              &#128190; 再保存
+            </button>
+            <button class="big-btn primary" id="modalPrint">
+              &#128424; 打印
+            </button>
+            <button class="big-btn warn" id="modalDone">
+              &#10003; 标记已跟进
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
   </main>
 </div>
 
-<!-- 提示弹窗 -->
 <div class="toast" id="toast"></div>
 
 <script src="app.js"></script>
