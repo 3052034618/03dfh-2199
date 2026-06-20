@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>冷链司机温控异常处置系统</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+  <header class="top-bar">
+    <div class="logo-area">
+      <span class="logo-icon">❄</span>
+      <h1 class="app-title">冷链温控异常处置</h1>
+    </div>
+    <div class="clock" id="currentTime">--:--:--</div>
+  </header>
+
+  <nav class="step-nav">
+    <button class="nav-btn active" data-step="1">
+      <span class="nav-num">1</span>
+      <span class="nav-text">异常选择</span>
+    </button>
+    <div class="nav-arrow">→</div>
+    <button class="nav-btn" data-step="2">
+      <span class="nav-num">2</span>
+      <span class="nav-text">处置步骤</span>
+    </button>
+    <div class="nav-arrow">→</div>
+    <button class="nav-btn" data-step="3">
+      <span class="nav-num">3</span>
+      <span class="nav-text">打印凭证</span>
+    </button>
+  </nav>
+
+  <main class="content-area">
+
+    <!-- 窗口1：异常选择 -->
+    <section class="window active" id="window1">
+      <div class="window-header">
+        <h2>第一步：选择异常情况</h2>
+        <p class="window-tip">请在下方找到与您情况最相符的一项，点击选中</p>
+      </div>
+
+      <div class="form-section">
+        <h3 class="section-title">常见异常场景</h3>
+        <div class="scenario-grid" id="scenarioGrid">
+          <div class="scenario-card" data-scenario="箱温偏高">
+            <div class="scenario-icon">🌡️</div>
+            <div class="scenario-title">箱温偏高</div>
+            <div class="scenario-desc">客户说货厢温度超标</div>
+          </div>
+          <div class="scenario-card" data-scenario="开门时间过长">
+            <div class="scenario-icon">🚪</div>
+            <div class="scenario-title">开门时间过长</div>
+            <div class="scenario-desc">卸货时车门开太久</div>
+          </div>
+          <div class="scenario-card" data-scenario="温度计损坏">
+            <div class="scenario-icon">📟</div>
+            <div class="scenario-title">温度计损坏</div>
+            <div class="scenario-desc">温度表显示异常或坏了</div>
+          </div>
+          <div class="scenario-card" data-scenario="门店等待卸货">
+            <div class="scenario-icon">⏳</div>
+            <div class="scenario-title">门店等待卸货</div>
+            <div class="scenario-desc">到店后迟迟没人卸货</div>
+          </div>
+          <div class="scenario-card" data-scenario="货品解冻">
+            <div class="scenario-icon">🧊</div>
+            <div class="scenario-title">货品解冻</div>
+            <div class="scenario-desc">客户发现货品变软化冻</div>
+          </div>
+          <div class="scenario-card" data-scenario="其他异常">
+            <div class="scenario-icon">❓</div>
+            <div class="scenario-title">其他异常</div>
+            <div class="scenario-desc">以上情况都不符合</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3 class="section-title">填写车辆和货品信息</h3>
+        <div class="info-grid">
+          <div class="info-item">
+            <label>车牌号</label>
+            <input type="text" id="plateNo" placeholder="如：京A·12345" class="big-input">
+          </div>
+          <div class="info-item">
+            <label>货品种类</label>
+            <input type="text" id="goodsType" placeholder="如：冷冻肉类、冰淇淋" class="big-input">
+          </div>
+          <div class="info-item">
+            <label>当前温度（℃）</label>
+            <input type="number" id="currentTemp" placeholder="如：-18" class="big-input">
+          </div>
+          <div class="info-item">
+            <label>要求温度（℃）</label>
+            <input type="number" id="requiredTemp" placeholder="如：-18" class="big-input">
+          </div>
+          <div class="info-item">
+            <label>司机姓名</label>
+            <input type="text" id="driverName" placeholder="请输入您的姓名" class="big-input">
+          </div>
+          <div class="info-item">
+            <label>到达门店</label>
+            <input type="text" id="storeName" placeholder="如：XX超市朝阳店" class="big-input">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3 class="section-title">情况说明（选填）</h3>
+        <textarea id="remark" class="big-textarea" placeholder="如有特殊情况，可在这里写清楚..."></textarea>
+      </div>
+
+      <div class="action-bar">
+        <button class="big-btn primary" id="toStep2">
+          确认信息，去处置 →
+        </button>
+      </div>
+    </section>
+
+    <!-- 窗口2：处置步骤 -->
+    <section class="window" id="window2">
+      <div class="window-header">
+        <h2>第二步：按步骤处置</h2>
+        <p class="window-tip">请按下方顺序操作，做完一项点一项打勾</p>
+      </div>
+
+      <div class="current-status">
+        <span class="status-label">当前异常：</span>
+        <span class="status-value" id="currentScenario">—</span>
+      </div>
+
+      <div class="steps-container" id="stepsContainer">
+        <!-- 步骤将由JS动态生成 -->
+      </div>
+
+      <div class="action-bar two-btn">
+        <button class="big-btn secondary" id="backToStep1">
+          ← 返回修改
+        </button>
+        <button class="big-btn primary" id="toStep3" disabled>
+          全部完成，生成凭证 →
+        </button>
+      </div>
+    </section>
+
+    <!-- 窗口3：打印凭证 -->
+    <section class="window" id="window3">
+      <div class="window-header">
+        <h2>第三步：确认并打印凭证</h2>
+        <p class="window-tip">请核对以下信息，确认无误后打印或保存</p>
+      </div>
+
+      <div class="voucher-container">
+        <div class="voucher" id="voucher">
+          <div class="voucher-head">
+            <h3>冷链运输温控异常处置凭证</h3>
+            <div class="voucher-no">编号：<span id="voucherNo">—</span></div>
+          </div>
+
+          <div class="voucher-section">
+            <h4>基本信息</h4>
+            <div class="info-row"><span>车牌号：</span><b id="v_plate">—</b></div>
+            <div class="info-row"><span>司机姓名：</span><b id="v_driver">—</b></div>
+            <div class="info-row"><span>到达门店：</span><b id="v_store">—</b></div>
+            <div class="info-row"><span>货品种类：</span><b id="v_goods">—</b></div>
+            <div class="info-row"><span>当前温度：</span><b id="v_temp">—</b></div>
+            <div class="info-row"><span>要求温度：</span><b id="v_reqTemp">—</b></div>
+            <div class="info-row"><span>异常类型：</span><b id="v_scenario">—</b></div>
+          </div>
+
+          <div class="voucher-section">
+            <h4>处置时间线</h4>
+            <div class="timeline" id="timeline">
+              <!-- 时间线由JS动态生成 -->
+            </div>
+          </div>
+
+          <div class="voucher-section">
+            <h4>司机说明</h4>
+            <div class="driver-note" id="v_remark">—</div>
+          </div>
+
+          <div class="voucher-section">
+            <h4>需调度跟进事项</h4>
+            <ul class="follow-list" id="followList">
+              <!-- 跟进事项由JS动态生成 -->
+            </ul>
+          </div>
+
+          <div class="voucher-sign">
+            <div class="sign-box">
+              <div class="sign-label">司机签字：</div>
+              <div class="sign-line"></div>
+            </div>
+            <div class="sign-box">
+              <div class="sign-label">门店签字：</div>
+              <div class="sign-line"></div>
+            </div>
+            <div class="sign-box">
+              <div class="sign-label">调度签字：</div>
+              <div class="sign-line"></div>
+            </div>
+          </div>
+
+          <div class="voucher-foot">
+            本凭证由系统生成，一式三份（司机、门店、调度各一份）<br>
+            生成时间：<span id="voucherTime">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-bar two-btn">
+        <button class="big-btn secondary" id="backToStep2">
+          ← 返回修改
+        </button>
+        <div class="btn-group">
+          <button class="big-btn success" id="saveBtn">
+            💾 保存凭证
+          </button>
+          <button class="big-btn primary" id="printBtn">
+            🖨️ 打印凭证
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- 提示弹窗 -->
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
